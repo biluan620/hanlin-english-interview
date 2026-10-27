@@ -1,0 +1,40 @@
+  <div class="modal" id="aiPanel">
+    <div class="sheet">
+      <h2>AI 纠错（可选，接口用 OpenAI 兼容格式）</h2>
+      <div class="sub">
+        打开后是这样配合的：HanLin 先用自带的 590 条规则改句 —— <b>不联网、瞬间出结果、不花钱</b>；
+        规则<b>没看出毛病</b>的句子，再交给 AI 复核一遍。<br>
+        AI 连不上、超时、或返回不合规矩时，会<b>自动跳回规则的结果</b>，上课不会卡住。
+      </div>
+      <div class="aiForm">
+        <label>服务</label>
+        <select id="aiPreset"></select>
+        <label>接口地址</label>
+        <input type="text" id="aiUrl" spellcheck="false" placeholder="https://api.deepseek.com/v1/chat/completions">
+        <label>模型名</label>
+        <input type="text" id="aiModel" spellcheck="false" placeholder="deepseek-chat">
+        <label>API Key</label>
+        <input type="password" id="aiKey" spellcheck="false" placeholder="本地模型可以留空">
+        <label>超时（秒）</label>
+        <input type="text" id="aiTimeout" spellcheck="false" placeholder="8">
+        <label>复核范围</label>
+        <select id="aiScope">
+          <option value="missed">只复核「规则没认出的」句子 —— 省时间、省钱（推荐）</option>
+          <option value="all">每一句都复核 —— 更严格，两边不一致会在屏幕上标出来</option>
+        </select>
+      </div>
+      <div class="vHint" id="aiMsg" style="margin-top:12px"></div>
+      <div class="sub" style="margin:14px 0 0">
+        · Key 只存在这台电脑的浏览器里，不会上传到别处，也不会写进课件文件。<br>
+        · 每次只把<b>学生这一句</b>发出去，不带姓名、不带历史记录。<br>
+        · 在线服务按量计费：一句初二英语的复核大约几十个 token，一节课通常花不到几分钱。
+      </div>
+      <div class="sheetBtns">
+        <button class="btn" id="aiTest">测试连接</button>
+        <button class="btn warn" id="aiOff">关闭 AI</button>
+        <div style="flex:1"></div>
+        <button class="btn" id="aiCancel">取消</button>
+        <button class="btn" id="aiSave" style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-color:#16327a">保存并开启</button>
+      </div>
+    </div>
+  </div>

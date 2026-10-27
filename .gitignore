@@ -1,0 +1,13 @@
+# 系统与编辑器
+Thumbs.db
+desktop.ini
+.DS_Store
+*.tmp
+*.log
+
+# 打包产物（仓库里已经有解开的文件夹，不需要再存一份 zip）
+*.zip
+
+# 本地临时目录
+.codex-build/
+work/

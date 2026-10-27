@@ -1,0 +1,57 @@
+  <div class="modal" id="micPanel">
+    <div class="sheet">
+      <h2>麦克风与语音识别</h2>
+      <div class="sub" id="micStatusLine"></div>
+
+      <div class="aiForm" style="grid-template-columns:132px 1fr; align-items:start">
+        <label>要听哪个麦</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="micAuto">自动挑选麦克风：开</button>
+          <button class="btn" id="micRedetect">重新检测</button>
+          <button class="btn" id="micRelock">恢复自动</button>
+        </div>
+        <label>试听音量</label>
+        <div style="background:#eef2f8;border-radius:8px;height:14px;overflow:hidden;border:1px solid var(--line)">
+          <div id="micTestBar" style="height:100%;width:0%;background:linear-gradient(90deg,#22c55e,#16a34a);transition:width .08s linear"></div>
+        </div>
+      </div>
+
+      <div id="micListBody" style="max-height:32vh;overflow:auto;margin-top:12px"></div>
+      <div class="vHint" id="micTestMsg" style="margin-top:10px"></div>
+      <div class="sub" style="margin:10px 0 0">
+        每个麦克风后面的「试听 3 秒」会真的打开它听一下：峰值到 <b>1.5 以上</b>才算能收到声音。
+        蓝牙耳机的麦克风经常显示正常但一点声音都收不到，遇到这种就换一个。
+      </div>
+
+      <h2 style="margin-top:20px">云端语音识别</h2>
+      <div class="sub">
+        填好之后，学生说话由云端模型转成文字（<b>只发这几秒的录音</b>，不带姓名、不带前面的问答记录）。
+        没填 Key 时会自动用浏览器自带听写，功能不会少。
+      </div>
+      <div class="aiForm">
+        <label>服务</label>
+        <select id="sttPreset"></select>
+        <label>接口地址</label>
+        <input type="text" id="sttUrl" spellcheck="false" placeholder="https://api.siliconflow.cn/v1/audio/transcriptions">
+        <label>模型名</label>
+        <input type="text" id="sttModel" spellcheck="false" placeholder="FunAudioLLM/SenseVoiceSmall">
+        <label>API Key</label>
+        <input type="password" id="sttKey" spellcheck="false" placeholder="硅基流动 / 智谱 的 Key">
+        <label>超时（秒）</label>
+        <input type="text" id="sttTimeout" spellcheck="false" placeholder="12">
+      </div>
+      <div class="sub" style="margin:12px 0 0">
+        · <b>硅基流动</b>（推荐）：注册后创建 API Key，模型填 <b>FunAudioLLM/SenseVoiceSmall</b>，很便宜，中文口音的英语也认得准。<br>
+        · <b>智谱</b>：开放平台的 API Key，模型填 <b>glm-asr</b>。<br>
+        · 识别出来的原文会显示在屏幕上，老师随时可以改；记录表里也会分开存「学生原话」和「提交的答案」。
+      </div>
+
+      <div class="sheetBtns">
+        <button class="btn" id="sttTest">测试识别（说 3 秒）</button>
+        <button class="btn warn" id="sttOff">关闭云端识别</button>
+        <div style="flex:1"></div>
+        <button class="btn" id="micClose">关闭</button>
+        <button class="btn" id="sttSave" style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border-color:#16327a">保存</button>
+      </div>
+    </div>
+  </div>

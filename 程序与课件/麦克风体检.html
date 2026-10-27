@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>麦克风体检</title>
+<style>
+  :root{ --ink:#0f172a; --sub:#5a6a85; --line:#d8e2f0; --brand:#2f6bff }
+  *{ box-sizing:border-box }
+  body{ margin:0; padding:22px 18px 60px; font:15px/1.7 "Microsoft YaHei",system-ui,sans-serif; color:var(--ink); background:#f4f8ff }
+  .wrap{ max-width:900px; margin:0 auto }
+  h1{ font-size:22px; margin:0 0 6px }
+  .sub{ color:var(--sub); font-size:13.5px; margin-bottom:16px }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:14px; box-shadow:0 6px 18px rgba(15,23,42,.05) }
+  h2{ font-size:16px; margin:0 0 10px }
+  .row{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px dashed #e8eef7 }
+  .row:last-child{ border-bottom:0 }
+  .ok{ color:#15803d; font-weight:700 }
+  .bad{ color:#b91c1c; font-weight:700 }
+  .warn{ color:#b45309; font-weight:700 }
+  .mono{ font-family:Consolas,monospace; font-size:12.5px; color:#334155; word-break:break-all }
+  button{ font-family:inherit; font-size:14px; padding:8px 14px; border-radius:9px; border:1px solid var(--line);
+          background:#fff; color:var(--ink); cursor:pointer }
+  button.primary{ background:linear-gradient(135deg,var(--brand),#1b47b5); color:#fff; border-color:#16327a }
+  button:disabled{ opacity:.55; cursor:default }
+  .bar{ flex:1; height:14px; background:#eef2f8; border:1px solid var(--line); border-radius:8px; overflow:hidden; min-width:120px }
+  .bar i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,#22c55e,#16a34a); transition:width .08s linear }
+  .dev{ display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px dashed #e8eef7; flex-wrap:wrap }
+  .dev:last-child{ border-bottom:0 }
+  .name{ flex:1 1 320px; min-width:200px }
+  .tip{ background:#fff9ec; border:1px solid #f3d9a4; color:#7a4b06; border-radius:10px; padding:10px 12px; font-size:13.5px; margin-top:10px }
+  pre{ background:#0f172a; color:#dbe7ff; padding:14px; border-radius:12px; font-size:12.5px; line-height:1.6;
+       max-height:320px; overflow:auto; white-space:pre-wrap; word-break:break-all }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>麦克风体检</h1>
+  <div class="sub">这个页面只做检查，不改任何设置。把结果复制给我，我就能知道问题出在哪一环。</div>
+
+  <div class="card">
+    <h2>一、自动检查</h2>
+    <div id="auto"><div class="row"><span class="warn">检查中…</span></div></div>
+    <div class="tip">如果这里出现「系统层面被拒绝」，说明是 Windows 开关的问题，跟用哪个麦克风无关。</div>
+  </div>
+
+  <div class="card">
+    <h2>二、逐个麦克风试听（每个 8 秒，请对着麦克风说一句话）</h2>
+    <div id="devs"><div class="row"><span class="warn">正在读取设备…</span></div></div>
+    <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap">
+      <button class="primary" id="allBtn">全部试听一遍（会依次听 8 秒）</button>
+      <button id="stopBtn">停止</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>三、听写测试（说一句英语，看能不能出文字）</h2>
+    <div class="row"><span style="width:110px;color:var(--sub)">状态</span><span id="srState" class="warn">未开始</span></div>
+    <div class="row"><span style="width:110px;color:var(--sub)">识别到的文字</span><span id="srText" class="mono">—</span></div>
+    <div class="row"><span style="width:110px;color:var(--sub)">错误信息</span><span id="srErr" class="mono">—</span></div>
+    <div style="margin-top:12px; display:flex; gap:10px">
+      <button class="primary" id="srBtn">开始听写测试（8 秒）</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>四、结果汇总（点下面按钮复制，发给我）</h2>
+    <pre id="log">（还没有结果）</pre>
+    <div style="margin-top:12px"><button class="primary" id="copyBtn">复制全部结果</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var lines = [];
+  function log(s){ lines.push(s); document.getElementById("log").textContent = lines.join("\n"); }
+  function row(html){ var d = document.createElement("div"); d.className = "row"; d.innerHTML = html; return d; }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>]/g, function(c){ return ({ "&":"&amp;","<":"&lt;",">":"&gt;" })[c]; }); }
+  function now(){ return new Date().toLocaleTimeString(); }
+
+  log("=== 麦克风体检 " + new Date().toLocaleString() + " ===");
+  log("浏览器：" + navigator.userAgent);
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var devices = [];
+  var stopAll = false;
+
+  /* ---------- 一、自动检查 ---------- */
+  function checkAuto(){
+    var box = document.getElementById("auto");
+    box.innerHTML = "";
+
+    box.appendChild(row('<span style="width:150px;color:var(--sub)">能不能听写</span>' +
+      (SR ? '<span class="ok">✓ 这个浏览器支持</span>' : '<span class="bad">✗ 不支持（要用 Edge）</span>')));
+    log("能听写：" + (SR ? "是" : "否"));
+
+    var permRow = row('<span style="width:150px;color:var(--sub)">麦克风权限</span><span class="warn">读取中…</span>');
+    box.appendChild(permRow);
+    if(navigator.permissions && navigator.permissions.query){
+      navigator.permissions.query({ name: "microphone" }).then(function(p){
+        var t = p.state === "granted" ? '<span class="ok">✓ 已允许</span>'
+              : p.state === "denied" ? '<span class="bad">✗ 被拒绝</span>'
+              : '<span class="warn">还没问过（点下面的试听会问一次）</span>';
+        permRow.innerHTML = '<span style="width:150px;color:var(--sub)">麦克风权限</span>' + t;
+        log("权限状态：" + p.state);
+        checkGum();
+      }).catch(function(e){ permRow.innerHTML = '<span style="width:150px;color:var(--sub)">麦克风权限</span><span class="warn">查不到</span>'; checkGum(); });
+    }else{
+      permRow.innerHTML = '<span style="width:150px;color:var(--sub)">麦克风权限</span><span class="warn">这个浏览器查不到</span>';
+      checkGum();
+    }
+  }
+
+  function checkGum(){
+    var box = document.getElementById("auto");
+    var r = row('<span style="width:150px;color:var(--sub)">打开默认麦克风</span><span class="warn">正在申请…（如果弹框请点允许）</span>');
+    box.appendChild(r);
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(st){
+      var label = (st.getAudioTracks()[0] || {}).label || "(没有名字)";
+      r.innerHTML = '<span style="width:150px;color:var(--sub)">打开默认麦克风</span><span class="ok">✓ 成功：' + esc(label) + '</span>';
+      log("打开默认麦克风：成功，设备 = " + label);
+      st.getTracks().forEach(function(t){ try{ t.stop(); }catch(e){} });
+      listDevices();
+    }).catch(function(err){
+      var nm = (err && err.name) || "?", msg = (err && err.message) || "";
+      var hint = "";
+      if(/system/i.test(msg)) hint = '　→ 这是 <b>Windows 层面</b>拦住了：设置 → 隐私和安全性 → 麦克风 → 打开「麦克风访问」和「让桌面应用访问你的麦克风」。';
+      else if(nm === "NotAllowedError") hint = '　→ 浏览器权限被拒绝：点地址栏左边的图标改成「允许」。';
+      else if(nm === "NotFoundError") hint = '　→ 没检测到麦克风。';
+      r.innerHTML = '<span style="width:150px;color:var(--sub)">打开默认麦克风</span><span class="bad">✗ 失败：' + esc(nm) + " " + esc(msg) + '</span>' + hint;
+      log("打开默认麦克风：失败，" + nm + " / " + msg + (hint ? "  [Windows 层面拦截]" : ""));
+      listDevices();
+    });
+  }
+
+  /* ---------- 二、设备列表 ---------- */
+  function listDevices(){
+    navigator.mediaDevices.enumerateDevices().then(function(all){
+      devices = all.filter(function(d){ return d.kind === "audioinput"; });
+      var box = document.getElementById("devs");
+      box.innerHTML = "";
+      log("检测到录音设备 " + devices.length + " 个：");
+      if(!devices.length){ box.appendChild(row('<span class="bad">一个录音设备都没检测到</span>')); return; }
+      devices.forEach(function(d, i){
+        var wrap = document.createElement("div");
+        wrap.className = "dev";
+        wrap.innerHTML = '<span class="name">' + (i + 1) + '. ' + esc(d.label || "(没有名字的设备)") + '</span>' +
+          '<span class="bar"><i></i></span><span class="peak mono" style="width:74px">—</span>' +
+          '<button data-idx="' + i + '">试听 8 秒</button>';
+        box.appendChild(wrap);
+        log("  设备 " + (i + 1) + "：" + (d.label || "(没有名字)"));
+      });
+      Array.prototype.forEach.call(box.querySelectorAll("button[data-idx]"), function(b){
+        b.addEventListener("click", function(){ listenOne(devices[Number(this.getAttribute("data-idx"))], this); });
+      });
+    }).catch(function(e){ log("枚举设备失败：" + e.message); });
+  }
+
+  function listenOne(dev, btn, secs, cb){
+    secs = secs || 8;
+    if(btn){ btn.disabled = true; btn.textContent = "听 " + secs + " 秒…"; }
+    var el = btn ? btn.closest(".dev") : null;
+    var bar = el ? el.querySelector(".bar i") : null;
+    var pk = el ? el.querySelector(".peak") : null;
+    navigator.mediaDevices.getUserMedia({ audio: { deviceId: dev.deviceId ? { exact: dev.deviceId } : undefined } })
+      .then(function(st){
+        var AC = window.AudioContext || window.webkitAudioContext;
+        var c = new AC();
+        try{ c.resume(); }catch(e){}
+        var an = c.createAnalyser(); an.fftSize = 1024; an.smoothingTimeConstant = 0.5;
+        c.createMediaStreamSource(st).connect(an);
+        var buf = new Uint8Array(an.fftSize), mx = 0, t0 = Date.now();
+        var tk = setInterval(function(){
+          an.getByteTimeDomainData(buf);
+          var s = 0, n = buf.length, i, v;
+          for(i = 0; i < n; i += 2){ v = (buf[i] - 128) / 128; s += v * v; }
+          var rms = Math.min(1, Math.sqrt(s / (n / 2)) * 3.2);
+          if(rms > mx) mx = rms;
+          if(bar) bar.style.width = Math.min(100, Math.round(rms * 260)) + "%";
+          if(pk) pk.textContent = (mx * 100).toFixed(1);
+          if(stopAll || Date.now() - t0 >= secs * 1000){
+            clearInterval(tk);
+            try{ st.getTracks().forEach(function(t){ t.stop(); }); }catch(e){}
+            try{ c.close(); }catch(e){}
+            if(bar) bar.style.width = "0%";
+            if(btn){ btn.disabled = false; btn.textContent = "试听 8 秒"; }
+            log("  试听「" + (dev.label || "无名") + "」结果：峰值 " + (mx * 100).toFixed(1) + (mx >= 0.015 ? "  → 能收到声音 ✓" : "  → 几乎收不到 ✗"));
+            if(cb) cb(mx);
+          }
+        }, 80);
+      })
+      .catch(function(err){
+        if(btn){ btn.disabled = false; btn.textContent = "试听 8 秒"; }
+        log("  试听「" + (dev.label || "无名") + "」失败：" + ((err && err.name) || "") + " " + ((err && err.message) || ""));
+        if(cb) cb(-1);
+      });
+  }
+
+  document.getElementById("allBtn").addEventListener("click", function(){
+    stopAll = false;
+    var i = 0;
+    document.getElementById("allBtn").disabled = true;
+    log("--- 开始依次试听全部设备，请对着麦克风说话 ---");
+    (function next(){
+      if(stopAll || i >= devices.length){ document.getElementById("allBtn").disabled = false; log("--- 试听结束 ---"); return; }
+      var d = devices[i++];
+      var btn = document.querySelector('button[data-idx="' + (i - 1) + '"]');
+      listenOne(d, btn, 8, next);
+    })();
+  });
+  document.getElementById("stopBtn").addEventListener("click", function(){ stopAll = true; });
+
+  /* ---------- 三、听写测试 ---------- */
+  document.getElementById("srBtn").addEventListener("click", function(){
+    if(!SR){ document.getElementById("srState").innerHTML = '<span class="bad">这个浏览器不支持听写</span>'; return; }
+    var rec = new SR();
+    rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 3;
+    var got = "";
+    document.getElementById("srState").innerHTML = '<span class="warn">正在听（8 秒）…请说一句英语</span>';
+    document.getElementById("srText").textContent = "—";
+    document.getElementById("srErr").textContent = "—";
+    log("--- 听写测试开始（语言 en-US）---");
+    rec.onstart = function(){ log("  听写状态：已启动"); };
+    rec.onresult = function(ev){
+      var t = "";
+      for(var i = 0; i < ev.results.length; i++) t += ev.results[i][0].transcript;
+      got = t;
+      document.getElementById("srText").textContent = t || "—";
+    };
+    rec.onerror = function(ev){
+      var e = (ev && ev.error) || "";
+      document.getElementById("srErr").textContent = e;
+      document.getElementById("srState").innerHTML = '<span class="bad">出错：' + esc(e) + '</span>';
+      log("  听写错误：" + e + (e === "network" ? "（连不上识别服务，检查网络或用 Edge）" : e === "not-allowed" ? "（麦克风权限被拒）" : ""));
+    };
+    rec.onend = function(){ log("  听写状态：已结束"); };
+    try{ rec.start(); }catch(e){ log("  听写启动失败：" + e.message); }
+    setTimeout(function(){
+      try{ rec.stop(); }catch(e){}
+      if(got){
+        document.getElementById("srState").innerHTML = '<span class="ok">✓ 识别成功</span>';
+        log("  听写结果：" + got + "  → 识别能用 ✓");
+      }else if(document.getElementById("srErr").textContent === "—"){
+        document.getElementById("srState").innerHTML = '<span class="warn">没出文字，也没报错</span>';
+        log("  听写结果：没有任何文字，也没报错 → 检查麦克风是否收到声音、说的话是不是英语");
+      }
+      document.getElementById("srBtn").disabled = false;
+    }, 8000);
+    document.getElementById("srBtn").disabled = true;
+  });
+
+  /* ---------- 四、复制 ---------- */
+  document.getElementById("copyBtn").addEventListener("click", function(){
+    var t = document.getElementById("log").textContent;
+    try{
+      navigator.clipboard.writeText(t).then(function(){ alert("已复制，粘贴给我就行。"); },
+        function(){ fallback(t); });
+    }catch(e){ fallback(t); }
+  });
+  function fallback(t){
+    var ta = document.createElement("textarea");
+    ta.value = t; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); alert("已复制，粘贴给我就行。"); }catch(e){ alert("复制失败，请手动选中下面的文字。"); }
+    document.body.removeChild(ta);
+  }
+
+  checkAuto();
+})();
+</script>
+</body>
+</html>
